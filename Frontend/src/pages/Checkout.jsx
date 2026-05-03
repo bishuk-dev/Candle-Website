@@ -279,15 +279,6 @@ const Checkout = () => {
                 {savedAddresses.length > 0 && (
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="font-medium text-gray-800">New Address</h3>
-                    <button
-                      onClick={() => {
-                        setShowNewAddressForm(false);
-                        setIsAddressExpanded(true);
-                      }}
-                      className="text-sm text-gray-500 hover:text-stone-800 underline transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

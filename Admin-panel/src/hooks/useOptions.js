@@ -86,9 +86,9 @@ export const useDeleteOption = () => {
 export const useToggleOptionStatus = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ type, optionId }) => {
-            // Backend expects type (e.g., "vessel", "scent")
-            const { data } = await api.patch(`/admin/customization/${type}/${optionId}/toggle`);
+        mutationFn: async ({ step, optionId }) => {
+            // Backend expects step (e.g., 1, 2)
+            const { data } = await api.patch(`/admin/customization/${step}/${optionId}/toggle`);
             return data;
         },
         onSuccess: () => {

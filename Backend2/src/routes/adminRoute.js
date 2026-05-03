@@ -284,7 +284,7 @@ router.delete(
 
 // Toggle option status
 router.patch(
-    "/customization/:type/:optionId/toggle",
+    "/customization/:step/:optionId/toggle",
     isAuthenticated,
     isAdmin,
     toggleOptionStatus
