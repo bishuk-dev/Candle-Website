@@ -8,107 +8,110 @@ import { CandleCustomization } from "../models/optionModel.js";
 import { config } from "../config/index.js";
 import { createShipment } from "./shipRocketService.js";
 import { sendSMS } from "./otp_services.js";
+import mongoose from "mongoose";
 
 const razorpay = new Razorpay({
     key_id: config.razor.k_id,
     key_secret: config.razor.k_secret
 });
 
-// =========================
-//  CREATE RAZORPAY ORDER
-// =========================
-export const createRazorpayOrder = async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id)
-            .populate("cart.product")
-            .populate("cart.customCandle");
+// // =========================
+// //  CREATE RAZORPAY ORDER
+// // =========================
+// export const createRazorpayOrder = async (req, res) => {
+//     try {
+//         const user = await User.findById(req.user._id)
+//             .populate("cart.product")
+//             .populate("cart.customCandle");
 
-        if (!user || user.cart.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Cart is empty"
-            });
-        }
+//         if (!user || user.cart.length === 0) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "Cart is empty"
+//             });
+//         }
 
-        let orderItems = [];
-        let itemsPrice = 0;
+//         let orderItems = [];
+//         let itemsPrice = 0;
 
-        for (let item of user.cart) {
-            if (item.type === "simpleCandle" || item.type === "simpleRaw") {
-                const prod = item.product;
-                const price = prod.discountPrice || prod.price;
-                itemsPrice += price * item.quantity;
-                orderItems.push({
-                    type: prod.type,
-                    product: prod._id,
-                    name: prod.name,
-                    quantity: item.quantity,
-                    price,
-                    image: prod.images?.[0]?.url || ""
-                });
-            }
+//         for (let item of user.cart) {
+//             if (item.type === "simpleCandle" || item.type === "simpleRaw") {
+//                 const prod = item.product;
+//                 const price = prod.discountPrice || prod.price;
+//                 itemsPrice += price * item.quantity;
+//                 orderItems.push({
+//                     type: prod.type,
+//                     product: prod._id,
+//                     name: prod.name,
+//                     quantity: item.quantity,
+//                     price,
+//                     image: prod.images?.[0]?.url || ""
+//                 });
+//             }
 
-            if (item.type === "custom") {
-                const candle = item.customCandle;
-                itemsPrice += candle.totalPrice * item.quantity;
-                orderItems.push({
-                    type: "custom",
-                    customCandle: candle._id,
-                    name: `Custom Candle`,
-                    quantity: item.quantity,
-                    price: candle.totalPrice
-                });
-            }
-        }
+//             if (item.type === "custom") {
+//                 const candle = item.customCandle;
+//                 itemsPrice += candle.totalPrice * item.quantity;
+//                 orderItems.push({
+//                     type: "custom",
+//                     customCandle: candle._id,
+//                     name: `Custom Candle`,
+//                     quantity: item.quantity,
+//                     price: candle.totalPrice
+//                 });
+//             }
+//         }
 
-        const shippingPrice = itemsPrice > 999 ? 0 : 99;
-        const taxPrice = itemsPrice * 0.05;
+//         const shippingPrice = itemsPrice > 999 ? 0 : 99;
+//         const taxPrice = itemsPrice * 0.05;
 
-        const totalAmount = Math.round(
-            itemsPrice + shippingPrice + taxPrice
-        );
+//         const totalAmount = Math.round(
+//             itemsPrice + shippingPrice + taxPrice
+//         );
 
-        const order = await Order.create({
-            user: user._id,
-            orderItems,
-            itemsPrice,
-            shippingPrice,
-            taxPrice,
-            totalAmount,
-            paymentMethod: "razorpay",
-            paymentStatus: "pending",
-            orderStatus: "processing"
-        });
+//         const order = await Order.create({
+//             user: user._id,
+//             orderItems,
+//             itemsPrice,
+//             shippingPrice,
+//             taxPrice,
+//             totalAmount,
+//             paymentMethod: "razorpay",
+//             paymentStatus: "pending",
+//             orderStatus: "processing"
+//         });
 
-        const razorpayOrder = await razorpay.orders.create({
-            amount: totalAmount * 100,
-            currency: "INR",
-            receipt: `order_${order._id}`
-        });
+//         const razorpayOrder = await razorpay.orders.create({
+//             amount: totalAmount * 100,
+//             currency: "INR",
+//             receipt: `order_${order._id}`
+//         });
 
-        order.razorpayOrderId = razorpayOrder.id;
-        await order.save();
+//         order.razorpayOrderId = razorpayOrder.id;
+//         await order.save();
 
-        res.status(200).json({
-            success: true,
-            razorpayOrder,
-            orderId: order._id,
-            amount: totalAmount
-        });
+//         res.status(200).json({
+//             success: true,
+//             razorpayOrder,
+//             orderId: order._id,
+//             amount: totalAmount
+//         });
 
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
+//     } catch (error) {
+//         res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+//     }
+// };
 
 // =========================
 //  VERIFY PAYMENT
 // =========================
 export const verifyPayment = async (req, res) => {
+    const session = await mongoose.startSession();
     try {
+        session.startTransaction();
         const {
             orderId,
             razorpay_order_id,
@@ -116,9 +119,10 @@ export const verifyPayment = async (req, res) => {
             razorpay_signature
         } = req.body;
 
-        const order = await Order.findById(orderId);
+        const order = await Order.findById(orderId).session(session);
 
         if (!order) {
+            await session.abortTransaction();
             return res.status(404).json({
                 success: false,
                 message: "Order not found"
@@ -127,6 +131,7 @@ export const verifyPayment = async (req, res) => {
 
         // Prevent duplicate execution
         if (order.paymentStatus === "paid") {
+            await session.abortTransaction();
             return res.status(200).json({
                 success: true,
                 message: "Already processed",
@@ -145,6 +150,7 @@ export const verifyPayment = async (req, res) => {
             .digest("hex");
 
         if (expectedSignature !== razorpay_signature) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "Invalid payment signature"
@@ -154,8 +160,8 @@ export const verifyPayment = async (req, res) => {
         // =========================
         //  GET USER + CONFIG
         // =========================
-        const user = await User.findById(order.user);
-        const customization = await CandleCustomization.findOne();
+        const user = await User.findById(order.user).session(session);
+        const customization = await CandleCustomization.findOne().session(session);
 
         // =========================
         //  UPDATE STOCK
@@ -164,23 +170,23 @@ export const verifyPayment = async (req, res) => {
 
             // SIMPLE
             if (item.type === "simpleCandle" || item.type === "simpleRaw") {
-                const prod = await Product.findById(item.product);
+                const prod = await Product.findById(item.product).session(session);
                 if (prod) {
                     prod.stock -= item.quantity;
-                    await prod.save();
+                    await prod.save({session});
                 }
             }
 
             // CUSTOM
             if (item.type === "custom") {
-                const candle = await CustomizedCandle.findById(item.customCandle);
+                const candle = await CustomizedCandle.findById(item.customCandle).session(session);
 
                 if (candle && customization) {
                     const reduceStock = (stepType, optionId) => {
                         if (!optionId) return;
-                        const step = customization.steps.find(s => s.type === stepType);
+                        const step = customization.steps.find(s => s.type === stepType).session(session);
                         if (step) {
-                            const opt = step.options.find(i => i._id.toString() === optionId.toString());
+                            const opt = step.options.find(i => i._id.toString() === optionId.toString()).session(session);
                             if (opt && opt.stock >= item.quantity) {
                                 opt.stock -= item.quantity;
                             }
@@ -200,7 +206,7 @@ export const verifyPayment = async (req, res) => {
         if (customization) {
             // Signal Mongoose that the nested array changed before saving
             customization.markModified('steps');
-            await customization.save();
+            await customization.save({session});
         }
 
         // =========================
@@ -215,8 +221,17 @@ export const verifyPayment = async (req, res) => {
         order.orderStatus = "confirmed";
         order.statusHistory.push({ status: "confirmed" });
 
-        await order.save();
+        await order.save({session});
 
+
+        // =========================
+        //  CLEAR CART
+        // =========================
+        user.cart = [];
+        await user.save({session});
+
+        await session.commitTransaction();
+        
         // =========================
         //  SEND MSG91 SMS
         // =========================
@@ -234,12 +249,6 @@ export const verifyPayment = async (req, res) => {
                 }
             ).catch(err => console.error("Failed to send Razorpay SMS:", err.message));
         }
-
-        // =========================
-        //  CLEAR CART
-        // =========================
-        user.cart = [];
-        await user.save();
 
         // =========================
         //  CREATE SHIPMENT
@@ -267,9 +276,14 @@ export const verifyPayment = async (req, res) => {
         });
 
     } catch (error) {
+        await session.abortTransaction();
         res.status(500).json({
             success: false,
             message: error.message
         });
+    }
+    finally {
+        // 5. Always end the session
+        session.endSession();
     }
 };

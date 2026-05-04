@@ -7,8 +7,7 @@ export const getSingleProduct = async (req, res) => {
 
     //  1. Get product with reviews
     const prod = await Product.findById({ _id: id, isActive: true })
-      .populate("category", "name")
-      .populate("reviews.user", "name");
+      .populate("category", "name");
 
     if (!prod) {
       return res.status(404).json({

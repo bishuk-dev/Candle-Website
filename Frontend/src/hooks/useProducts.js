@@ -32,7 +32,7 @@ export const useSingleProduct = (id) => {
     queryKey: ["product", id],
     queryFn: async () => {
       const { data } = await API.get(`/product/${id}`); // Adjust route to your backend
-      return { product: data.product, similarProducts: data.similarProducts };
+      return { product: data.product, similarProducts: data.similarProducts, reviews: data.reviews };
     },
     enabled: !!id,
   });

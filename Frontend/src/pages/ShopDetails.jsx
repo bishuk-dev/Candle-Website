@@ -17,6 +17,7 @@ const ShopDetails = () => {
   // Extracting data safely
   const product = data?.product;
   const similarProducts = data?.similarProducts || [];
+  const reviews = data?.reviews || [];
   
   const { liked, toggleWishlist } = useWishlist(id);
   
@@ -65,7 +66,7 @@ const ShopDetails = () => {
                   activeTab === tab ? 'text-black' : 'text-gray-400 hover:text-black'
                 }`}
               >
-                {tab === 'reviews' ? `Reviews (${product.reviews?.length || 0})` : tab}
+                {tab === 'reviews' ? `Reviews (${reviews?.length || 0})` : tab}
                 {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-black" />}
               </button>
             ))}
