@@ -25,7 +25,7 @@ const Options = () => {
   const currentStep = steps.find(s => s.stepNumber === activeTab);
   const currentOptions = currentStep?.options || [];
 
-  // 👉 FIXED: Base entrance animation
+  // Entrance animation
   useEffect(() => {
     if (isLoading) return;
     gsap.fromTo(containerRef.current, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" });
@@ -42,8 +42,7 @@ const Options = () => {
     return <div className="flex-1 flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   }
 
-  // 👉 FIXED: The "Chicken & Egg" Empty State
-  // If the database has no customization document, the backend throws an error.
+  // Initial Empty State
   if (isError || !data) {
     return (
       <main className="flex-1 p-6 md:p-margin-page max-w-container-max mx-auto w-full flex flex-col items-center justify-center min-h-[70vh] opacity-0" ref={containerRef}>
@@ -92,7 +91,7 @@ const Options = () => {
             const isActive = step.stepNumber === activeTab;
             return (
               <button
-                key={step.stepNumber} // 👉 Fixed from step._id (backend maps this out)
+                key={step.stepNumber}
                 onClick={() => setActiveTab(step.stepNumber)}
                 className={`relative flex flex-col gap-2 min-w-[120px] group cursor-pointer ${isActive ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface transition-colors'}`}
               >
@@ -141,8 +140,9 @@ const Options = () => {
             <div className="flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-heading text-lg font-bold text-on-surface">{opt.name}</h3>
+                {/* 👉 UPDATED TOGGLE CALL: Now passing step (activeTab) and optionId */}
                 <button
-                  onClick={() => toggleStatus({ type: currentStep.type, optionId: opt._id })}
+                  onClick={() => toggleStatus({ step: activeTab, optionId: opt._id })}
                   className={`w-10 h-5 rounded-full relative transition-colors duration-300 cursor-pointer flex-shrink-0 ${opt.isActive ? 'bg-[#c27823]' : 'bg-surface-dim'}`}
                 >
                   <div className={`w-4 h-4 bg-white rounded-full absolute top-[2px] transition-transform duration-300 shadow-sm ${opt.isActive ? 'left-[22px]' : 'left-[2px]'}`} />
@@ -159,7 +159,7 @@ const Options = () => {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => navigate(`/options/edit/${opt._id}`)}
+                    onClick={() => navigate(`/options/edit/${opt._id}?step=${activeTab}`)}
                     className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">edit</span>
@@ -175,6 +175,7 @@ const Options = () => {
           </div>
         ))}
 
+        {/* Dash Add Button */}
         <button
           onClick={() => navigate(`/options/add?step=${activeTab}`)}
           className="bg-transparent border-2 border-dashed border-outline-variant rounded-xl p-4 flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-surface-container-low transition-all min-h-[300px] group cursor-pointer"
@@ -184,7 +185,7 @@ const Options = () => {
           </div>
           <div className="text-center">
             <span className="font-heading text-lg font-bold text-on-surface block mb-1">Add New {currentStep?.title || 'Option'}</span>
-            <span className="text-sm text-on-surface-variant">Create a new decorative addition</span>
+            <span className="text-sm text-on-surface-variant">Create a new customization choice</span>
           </div>
         </button>
       </div>

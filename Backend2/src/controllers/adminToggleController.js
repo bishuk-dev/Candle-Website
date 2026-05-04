@@ -79,8 +79,8 @@ export const updateReviewStatus = async (req, res) => {
 
 export const toggleOptionStatus = async (req, res) => {
     try {
-        const { type, optionId } = req.params;
-        // type = vessels | scents | addOns | label
+        const { step, optionId } = req.params;
+        // step is expected to be a number (1, 2, or 3) passed in the URL
 
         const customization = await CandleCustomization.findOne();
 
@@ -91,18 +91,21 @@ export const toggleOptionStatus = async (req, res) => {
             });
         }
 
-        //  VALID TYPES
-        const validTypes = ["vessel", "scent", "addOn", "label"];
+        // 👉 1. FIND THE CORRECT STEP BY NUMBER
+        const targetStep = customization.steps.find(
+            (s) => s.stepNumber === Number(step)
+        );
 
-        if (!validTypes.includes(type)) {
-            return res.status(400).json({
+        if (!targetStep) {
+            return res.status(404).json({
                 success: false,
-                message: "Invalid option type"
+                message: "Step not found"
             });
         }
 
-        //  FIND OPTION
-        const option = customization[type].id(optionId);
+        // 👉 2. FIND THE OPTION INSIDE THAT SPECIFIC STEP
+        // Mongoose subdocument arrays have a built-in .id() method to find by _id
+        const option = targetStep.options.id(optionId);
 
         if (!option) {
             return res.status(404).json({
@@ -111,9 +114,10 @@ export const toggleOptionStatus = async (req, res) => {
             });
         }
 
-        //  TOGGLE STATUS
+        // 👉 3. TOGGLE STATUS
         option.isActive = !option.isActive;
 
+        // Save the parent document, Mongoose handles the nested update
         await customization.save();
 
         res.status(200).json({

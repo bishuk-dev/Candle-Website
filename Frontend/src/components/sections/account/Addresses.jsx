@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { MapPin, Plus, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
+import { MapPin, Plus, Edit2, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
 import MainBtn from '../../ui/Buttons/MainBtn';
 import { useAddress } from '../../../hooks/useAddress';
+import { usePincodeLookup } from '../../../hooks/usePincodeLookup'; // 👉 Import Pincode Hook
 
 const Addresses = () => {
     const { user } = useOutletContext();
     const addresses = user?.addresses || [];
 
     const { addAddress, updateAddress, deleteAddress, isAdding, isUpdating } = useAddress();
+    const { lookupPincode, isLookingUp, pincodeError } = usePincodeLookup(); // 👉 Initialize Hook
 
     // State to toggle between the list view and the form view
     const [showForm, setShowForm] = useState(false);
@@ -18,6 +20,9 @@ const Addresses = () => {
     const [formData, setFormData] = useState({
         firstName: '', lastName: '', phone: '', address: '', city: '', state: '', pincode: '', isDefault: false
     });
+
+    // 👉 LOGIC: Is this their very first address, OR are they editing their only address?
+    const isOnlyAddress = addresses.length === 0 || (addresses.length === 1 && editingId === addresses[0]._id);
 
     const handleOpenForm = (address = null) => {
         if (address) {
@@ -32,7 +37,7 @@ const Addresses = () => {
                 city: '',
                 state: '',
                 pincode: '',
-                isDefault: addresses.length === 0 // Make default automatically if it's the first one
+                isDefault: addresses.length === 0 // Automatically true if no addresses
             });
             setEditingId(null);
         }
@@ -44,28 +49,53 @@ const Addresses = () => {
         setEditingId(null);
     };
 
-    const handleChange = (e) => {
+    const handleChange = async (e) => {
         const { name, value, type, checked } = e.target;
-        setFormData({
-            ...formData,
-            [name]: type === 'checkbox' ? checked : value
-        });
+
+        // 👉 PINCODE INTERCEPTOR
+        if (name === 'pincode') {
+            const val = value.replace(/\D/g, '').slice(0, 6);
+            setFormData(prev => ({ ...prev, pincode: val }));
+
+            if (val.length === 6) {
+                const locationData = await lookupPincode(val);
+                if (locationData) {
+                    setFormData(prev => ({
+                        ...prev,
+                        city: locationData.city,
+                        state: locationData.state
+                    }));
+                } else {
+                    setFormData(prev => ({ ...prev, city: '', state: '' }));
+                }
+            }
+        } else {
+            // Standard handler for everything else
+            setFormData(prev => ({
+                ...prev,
+                [name]: type === 'checkbox' ? checked : value
+            }));
+        }
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
+
+        // Force isDefault to true if it's their only address, just to be safe before sending to DB
+        const finalData = {
+            ...formData,
+            isDefault: isOnlyAddress ? true : formData.isDefault
+        };
 
         try {
             if (editingId) {
-                // Update existing
-                await updateAddress({ addressId: editingId, addressData: formData });
+                await updateAddress({ addressId: editingId, addressData: finalData });
             } else {
-                // Add new
-                await addAddress(formData);
+                await addAddress(finalData);
             }
-            // Close form only if successful
             handleCloseForm();
         } catch (error) {
+            // Errors handled natively by useAddress toast
             console.error("Submission failed", error);
         }
     };
@@ -92,7 +122,7 @@ const Addresses = () => {
                     <h4 className="text-xl font-semibold text-heading">
                         {editingId ? "Edit Address" : "Add New Address"}
                     </h4>
-                    <button onClick={handleCloseForm} className="text-sm text-paragraph hover:text-black underline">
+                    <button onClick={handleCloseForm} className="text-sm text-paragraph hover:text-black underline cursor-pointer">
                         Cancel
                     </button>
                 </div>
@@ -109,8 +139,32 @@ const Addresses = () => {
                         </div>
                         <div className="space-y-1.5 md:col-span-2">
                             <label className="block text-[13px] font-medium text-gray-600">Street Address</label>
-                            <input required name="address" value={formData.address} onChange={handleChange} type="text" placeholder="House number and street name" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
+                            <input required name="address" value={formData.address} onChange={handleChange} type="text" placeholder="House number, apartment, and street name" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
                         </div>
+
+                        {/* 👉 PINCODE FIELD WITH SPINNER */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[13px] font-medium text-gray-600">Pincode / ZIP</label>
+                            <div className="relative">
+                                <input
+                                    required
+                                    name="pincode"
+                                    value={formData.pincode}
+                                    onChange={handleChange}
+                                    type="text"
+                                    maxLength={6}
+                                    minLength={6}
+                                    className={`w-full py-2.5 px-4 bg-white border rounded-sm focus:outline-none text-[14px] ${pincodeError ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-gray-400'}`}
+                                />
+                                {isLookingUp && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                                    </div>
+                                )}
+                            </div>
+                            {pincodeError && <p className="text-red-500 text-[11px] mt-1">{pincodeError}</p>}
+                        </div>
+
                         <div className="space-y-1.5">
                             <label className="block text-[13px] font-medium text-gray-600">City</label>
                             <input required name="city" value={formData.city} onChange={handleChange} type="text" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
@@ -120,26 +174,27 @@ const Addresses = () => {
                             <input required name="state" value={formData.state} onChange={handleChange} type="text" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="block text-[13px] font-medium text-gray-600">Pincode / ZIP</label>
-                            <input required name="pincode" value={formData.pincode} onChange={handleChange} type="text" maxLength={6} className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
-                        </div>
-                        <div className="space-y-1.5">
                             <label className="block text-[13px] font-medium text-gray-600">Mobile Number</label>
-                            <input required name="phone" value={formData.phone} onChange={handleChange} type="tel" maxLength={10} className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
+                            <input required name="phone" value={formData.phone} onChange={handleChange} type="tel" maxLength={10} minLength={10} className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
                         </div>
                     </div>
 
+                    {/* 👉 DYNAMIC DEFAULT CHECKBOX */}
                     <div className="flex items-center gap-2 mt-4">
                         <input
                             type="checkbox"
                             id="isDefault"
                             name="isDefault"
-                            checked={formData.isDefault}
+                            checked={isOnlyAddress ? true : formData.isDefault}
                             onChange={handleChange}
-                            className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black accent-black"
+                            disabled={isOnlyAddress}
+                            className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black accent-black disabled:opacity-50"
                         />
-                        <label htmlFor="isDefault" className="text-[14px] text-gray-600 cursor-pointer">
-                            Set as default shipping address
+                        <label
+                            htmlFor="isDefault"
+                            className={`text-[14px] text-gray-600 ${isOnlyAddress ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                            Set as default shipping address {isOnlyAddress && "(Required for first address)"}
                         </label>
                     </div>
 
@@ -147,7 +202,7 @@ const Addresses = () => {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="px-8 py-3 bg-black hover:bg-gray-900 text-white font-bold rounded-sm text-[14px] transition-all disabled:bg-gray-400"
+                            className="px-8 py-3 bg-black hover:bg-gray-900 text-white font-bold rounded-sm text-[14px] transition-all disabled:bg-gray-400 cursor-pointer"
                         >
                             {isSubmitting ? "Saving..." : (editingId ? "Update Address" : "Save Address")}
                         </button>
@@ -166,7 +221,7 @@ const Addresses = () => {
                 <h4 className="text-xl font-semibold text-heading">Saved Addresses</h4>
                 <button
                     onClick={() => handleOpenForm()}
-                    className="flex items-center gap-1 text-sm font-semibold text-[#ea580c] hover:text-[#c2410c] transition-colors"
+                    className="flex items-center gap-1 text-sm font-semibold text-[#ea580c] hover:text-[#c2410c] transition-colors cursor-pointer"
                 >
                     <Plus size={16} /> Add New
                 </button>
@@ -199,13 +254,13 @@ const Addresses = () => {
                             <div className="flex items-center gap-4 pt-4 border-t border-gray-200">
                                 <button
                                     onClick={() => handleOpenForm(addr)}
-                                    className="flex items-center gap-1 text-[13px] font-medium text-gray-500 hover:text-black transition-colors"
+                                    className="flex items-center gap-1 text-[13px] font-medium text-gray-500 hover:text-black transition-colors cursor-pointer"
                                 >
                                     <Edit2 size={14} /> Edit
                                 </button>
                                 <button
                                     onClick={() => handleDelete(addr._id)}
-                                    className="flex items-center gap-1 text-[13px] font-medium text-red-500 hover:text-red-700 transition-colors"
+                                    className="flex items-center gap-1 text-[13px] font-medium text-red-500 hover:text-red-700 transition-colors cursor-pointer"
                                 >
                                     <Trash2 size={14} /> Delete
                                 </button>

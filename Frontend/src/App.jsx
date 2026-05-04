@@ -13,6 +13,7 @@ import Wishlist from './components/sections/account/Wishlist'
 import Orders from './components/sections/account/Orders'
 import Profile from './components/sections/account/Profile'
 import Addresses from './components/sections/account/Addresses'
+import ViewOrder from './components/sections/account/ViewOrder'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import ShopDetails from './pages/ShopDetails'
@@ -24,7 +25,6 @@ import Contact from './components/sections/Contact'
 import Customized from './pages/Customized'
 import Collections from './components/sections/Collections'
 import CollectionProducts from './pages/CollectionProducts'
-import AdminAddProduct from './pages/AdminAddProducts'
 
 
 
@@ -88,7 +88,6 @@ function App() {
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-otp" element={<VerifyOTP />} />
                   <Route path="/complete-google-profile" element={<CompleteGoogleProfile />} />
-                  <Route path="/admin/add-product" element={<AdminAddProduct />} />
 
 
                   <Route path="/account" element={<MyAccount />}>
@@ -96,6 +95,7 @@ function App() {
                     <Route path="orders" element={<Orders />} />
                     <Route path="wishlist" element={<Wishlist />} />
                     <Route path="addresses" element={<Addresses />} />
+                    <Route path="orders/:orderId" element={<ViewOrder />} />
                   </Route>
 
 

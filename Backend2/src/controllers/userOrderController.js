@@ -32,7 +32,7 @@ export const getSingleOrder = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id)
             .populate("orderItems.product", "name images")
-            .populate("user", "_id"); // needed for security check
+            .populate("user", "name email"); // Populate basic user info just in case
 
         if (!order) {
             return res.status(404).json({
@@ -44,8 +44,9 @@ export const getSingleOrder = async (req, res) => {
         // =========================
         //  SECURITY CHECK
         // =========================
-        const isOwner = order.user._id.toString() === req.user._id.toString();
-        const isAdmin = req.user.role === "admin";
+        // Safely check if the user requesting is the owner OR an admin
+        const isOwner = req.user && order.user && order.user._id.toString() === req.user._id.toString();
+        const isAdmin = req.user && req.user.role === "admin";
 
         if (!isOwner && !isAdmin) {
             return res.status(403).json({
@@ -72,11 +73,7 @@ export const getSingleOrder = async (req, res) => {
 
                 const trackingRes = await axios.get(
                     `https://apiv2.shiprocket.in/v1/external/courier/track/awb/${order.awbCode}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`
-                        }
-                    }
+                    { headers: { Authorization: `Bearer ${token}` } }
                 );
 
                 const data = trackingRes.data?.tracking_data;
@@ -87,10 +84,9 @@ export const getSingleOrder = async (req, res) => {
                     location: data?.shipment_track?.[0]?.current_location,
                     timeline: data?.shipment_track_activities || []
                 };
-
             } catch (err) {
-                // fallback if API fails
                 console.error("Tracking API failed:", err.message);
+                // Fails silently so the user still gets their order data even if Shiprocket is down
             }
         }
 
