@@ -1,19 +1,18 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom'; // 👉 1. IMPORT PORTAL
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Package, Truck, CheckCircle, ChevronLeft, MapPin, CreditCard, Clock, ExternalLink, Loader2
+    Package, Truck, CheckCircle, ChevronLeft, MapPin, CreditCard, Clock, ExternalLink, Loader2, Star, X
 } from 'lucide-react';
-
+import toast from 'react-hot-toast';
+import API from '../../../api';
 import { useOrderDetails } from '../../../hooks/useOrders';
 
-// 👉 1. PURE HELPER FUNCTION AT THE TOP
-// Handles all data transformation cleanly outside the React render cycle
 const formatOrderData = (data) => {
     if (!data?.order) return null;
 
     const { order, tracking } = data;
 
-    // Internal date formatter
     const formatDate = (dateString) => {
         if (!dateString) return "Pending";
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -23,7 +22,6 @@ const formatOrderData = (data) => {
 
     const displayStatus = order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1).replace(/_/g, ' ');
 
-    // Dynamic Progress Bar Logic
     const statuses = ['confirmed', 'processing', 'shipped', 'delivered'];
     const currentStatusIndex = statuses.indexOf(order.orderStatus.toLowerCase());
 
@@ -48,12 +46,61 @@ const ViewOrder = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
 
-    // Fetch data using the hook
-    const { data, isLoading, isError } = useOrderDetails(orderId);
+    // REVIEW MODAL & HOVER STATES
+    const [reviewModal, setReviewModal] = useState({
+        isOpen: false,
+        productId: null,
+        productName: '',
+        rating: 0,
+        comment: ''
+    });
+    const [hoverRating, setHoverRating] = useState(0);
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-    // 👉 2. USE MEMO FOR PERFORMANCE
-    // Guarantees the formatting logic only runs once when the backend data arrives
+    const { data, isLoading, isError } = useOrderDetails(orderId);
     const formattedData = useMemo(() => formatOrderData(data), [data]);
+
+    const handleOpenReview = (productId, productName, initialRating) => {
+        setReviewModal({
+            isOpen: true,
+            productId,
+            productName,
+            rating: initialRating,
+            comment: ''
+        });
+        setHoverRating(0);
+    };
+
+    const handleCloseReview = () => {
+        setReviewModal({ isOpen: false, productId: null, productName: '', rating: 0, comment: '' });
+        setHoverRating(0);
+    };
+
+    const handleSubmitReview = async () => {
+        if (reviewModal.rating === 0) {
+            return toast.error("Please select a star rating.");
+        }
+        if (!reviewModal.comment.trim()) {
+            return toast.error("Please add a comment for your review.");
+        }
+
+        setIsSubmittingReview(true);
+        try {
+            await API.post('/review', {
+                orderId: orderId,
+                productId: reviewModal.productId,
+                rating: reviewModal.rating,
+                comment: reviewModal.comment
+            });
+
+            toast.success("Review added successfully!");
+            handleCloseReview();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to submit review.");
+        } finally {
+            setIsSubmittingReview(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -74,12 +121,10 @@ const ViewOrder = () => {
         );
     }
 
-    // 👉 3. DESTRUCTURE PRE-COMPUTED DATA
     const { order, displayStatus, statusSteps, formattedCreatedAt, formattedPaidAt } = formattedData;
 
     return (
-        <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-12">
-            {/* Header */}
+        <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-12 relative">
             <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
                 <div className="max-w-5xl mx-auto px-4 h-16 flex items-center">
                     <div className="flex items-center space-x-4">
@@ -94,8 +139,6 @@ const ViewOrder = () => {
             <main className="max-w-5xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Order Status & Items */}
                 <div className="lg:col-span-2 space-y-6">
-
-                    {/* Tracking Status Card */}
                     <section className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-8">
@@ -111,7 +154,6 @@ const ViewOrder = () => {
                                 </span>
                             </div>
 
-                            {/* Progress Stepper */}
                             <div className="relative">
                                 <div className="absolute left-[15px] top-0 h-full w-0.5 bg-stone-100 sm:hidden"></div>
                                 <div className="hidden sm:block absolute top-[15px] left-0 w-full h-0.5 bg-stone-100"></div>
@@ -135,7 +177,6 @@ const ViewOrder = () => {
                             </div>
                         </div>
 
-                        {/* Shiprocket Tracking Info (Only shows if AWB exists) */}
                         {order.awbCode && (
                             <div className="bg-stone-50 p-4 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
                                 <div className="flex items-center space-x-3">
@@ -163,36 +204,58 @@ const ViewOrder = () => {
                         </div>
                         <div className="divide-y divide-stone-100">
                             {order.orderItems.map((item, idx) => (
-                                <div key={idx} className="p-6 flex items-center group">
-                                    <div className="h-20 w-20 flex-shrink-0 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
-                                        <img
-                                            src={item.product?.images?.[0]?.url || "/placeholder.jpg"}
-                                            alt={item.product?.name || "Product"}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                        />
-                                    </div>
-                                    <div className="ml-6 flex-1">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-medium text-stone-900">{item.product?.name || "Custom Candle"}</h4>
-                                                {/* Details for custom candles */}
-                                                {item.type === "custom" && item.snapshot && (
-                                                    <p className="text-xs text-stone-500 mt-1 line-clamp-1">
-                                                        Add-ons: {item.snapshot.addOnNames?.join(', ') || "None"}
-                                                    </p>
-                                                )}
-                                                <div className="flex items-center space-x-3 mt-2">
-                                                    <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">
-                                                        {item.type?.replace(/([A-Z])/g, ' $1').trim() || "Item"}
-                                                    </span>
-                                                    <span className="text-sm text-stone-500">Qty: {item.quantity || 1}</span>
+                                <div key={idx} className="p-6 flex flex-col group">
+                                    <div className="flex items-center">
+                                        <div className="h-20 w-20 flex-shrink-0 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
+                                            <img
+                                                src={item.product?.images?.[0]?.url || "/placeholder.jpg"}
+                                                alt={item.product?.name || "Product"}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            />
+                                        </div>
+                                        <div className="ml-6 flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-medium text-stone-900">{item.product?.name || "Custom Candle"}</h4>
+                                                    {item.type === "custom" && item.snapshot && (
+                                                        <p className="text-xs text-stone-500 mt-1 line-clamp-1">
+                                                            Add-ons: {item.snapshot.addOnNames?.join(', ') || "None"}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center space-x-3 mt-2">
+                                                        <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">
+                                                            {item.type?.replace(/([A-Z])/g, ' $1').trim() || "Item"}
+                                                        </span>
+                                                        <span className="text-sm text-stone-500">Qty: {item.quantity || 1}</span>
+                                                    </div>
                                                 </div>
+                                                <p className="font-medium text-stone-900">
+                                                    ₹{(item.price || (order.itemsPrice / order.orderItems.length)).toFixed(2)}
+                                                </p>
                                             </div>
-                                            <p className="font-medium text-stone-900">
-                                                ₹{(item.price || (order.itemsPrice / order.orderItems.length)).toFixed(2)}
-                                            </p>
                                         </div>
                                     </div>
+
+                                    {order.orderStatus === 'delivered' && item.product?._id && (
+                                        <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
+                                            <span className="text-[13px] font-semibold text-stone-500 tracking-wide">Leave a Review:</span>
+
+                                            {/* Initial stars below the product to OPEN the modal */}
+                                            <div className="flex gap-1">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <button
+                                                        key={star}
+                                                        type="button"
+                                                        onClick={() => handleOpenReview(item.product._id, item.product.name, star)}
+                                                        className="text-stone-300 hover:text-amber-400 transition-colors cursor-pointer"
+                                                        title={`Rate ${star} stars`}
+                                                    >
+                                                        <Star size={24} className="fill-current" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -201,8 +264,6 @@ const ViewOrder = () => {
 
                 {/* Right Column: Order Details & Summary */}
                 <div className="space-y-6">
-
-                    {/* Details Card */}
                     <section className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 space-y-6">
                         <div>
                             <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4 flex items-center">
@@ -210,9 +271,9 @@ const ViewOrder = () => {
                                 Shipping Address
                             </h4>
                             <div className="text-sm text-stone-600 leading-relaxed">
-                                <p className="font-semibold text-stone-900">{order.shippingAddress.address || "Address details"}</p>
-                                <p>{order.shippingAddress.city || "City"}, {order.shippingAddress.state || "State"} {order.shippingAddress.pincode || "Zip"}</p>
-                                <p>Phone: {order.shippingAddress.phone || "N/A"}</p>
+                                <p className="font-semibold text-stone-900">{order.address || "Address details"}</p>
+                                <p>{order.city || "City"}, {order.state || "State"} {order.pincode || "Zip"}</p>
+                                <p>Phone: {order.phone || "N/A"}</p>
                             </div>
                         </div>
 
@@ -246,7 +307,6 @@ const ViewOrder = () => {
                         </div>
                     </section>
 
-                    {/* Summary Card */}
                     <section className="bg-stone-900 text-white rounded-2xl shadow-lg p-6">
                         <h3 className="font-semibold text-lg mb-6">Order Summary</h3>
                         <div className="space-y-4 text-sm">
@@ -278,9 +338,89 @@ const ViewOrder = () => {
                             Need Help with Order?
                         </button>
                     </section>
-
                 </div>
             </main>
+
+            {/* 👉 2. RENDER POPUP USING REACT PORTAL to escape parent constraints */}
+            {reviewModal.isOpen && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+
+                        <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-3">
+                            <div>
+                                <h3 className="text-lg font-bold text-stone-900">Write a Review</h3>
+                                <p className="text-xs text-stone-500 mt-1 line-clamp-1">{reviewModal.productName}</p>
+                            </div>
+                            <button onClick={handleCloseReview} className="text-stone-400 hover:text-stone-800 transition-colors cursor-pointer">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-semibold text-stone-700 mb-2 text-center">Tap a star to rate</label>
+
+                            {/* 👉 3. FLAWLESS HOVER LOGIC */}
+                            <div
+                                className="flex justify-center gap-2"
+                                onMouseLeave={() => setHoverRating(0)} // Reset on mouse leave container
+                            >
+                                {[1, 2, 3, 4, 5].map((star) => {
+                                    // Golden if the current star is <= hoverRating (if hovering)
+                                    // OR if not hovering, if it's <= the actually clicked rating.
+                                    const isFilled = (hoverRating || reviewModal.rating) >= star;
+
+                                    return (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => setReviewModal(p => ({ ...p, rating: star }))}
+                                            onMouseEnter={() => setHoverRating(star)}
+                                            className="transition-transform hover:scale-110 cursor-pointer p-1"
+                                        >
+                                            <Star
+                                                size={36}
+                                                className={`${isFilled ? 'fill-amber-400 text-amber-400 drop-shadow-sm' : 'fill-stone-200 text-stone-200'} transition-colors duration-150`}
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 mb-6">
+                            <label className="block text-sm font-semibold text-stone-700">Your Feedback</label>
+                            <textarea
+                                value={reviewModal.comment}
+                                onChange={(e) => setReviewModal(p => ({ ...p, comment: e.target.value }))}
+                                rows="4"
+                                placeholder="What did you love about this product? (e.g., Scent was amazing, packaging was beautiful...)"
+                                className="w-full border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#D19D94] resize-none"
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleCloseReview}
+                                disabled={isSubmittingReview}
+                                className="flex-1 py-3 px-4 border border-stone-200 text-stone-600 font-semibold rounded-xl hover:bg-stone-50 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitReview}
+                                disabled={isSubmittingReview}
+                                className="flex-1 py-3 px-4 bg-stone-900 text-white font-semibold rounded-xl hover:bg-stone-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                            >
+                                {isSubmittingReview ? (
+                                    <><Loader2 size={16} className="animate-spin" /> Saving...</>
+                                ) : "Submit Review"}
+                            </button>
+                        </div>
+
+                    </div>
+                </div>,
+                document.body // Appends the modal directly to the <body>
+            )}
         </div>
     );
 };

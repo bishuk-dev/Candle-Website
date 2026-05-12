@@ -19,7 +19,8 @@ const Checkout = () => {
   // --- Data Fetching ---
   const { data: user } = useUser();
   const { cart, isLoading: isCartLoading } = useCart();
-  const { createOrder, verifyPayment, isPlacingOrder } = useCheckout();
+  const { createOrder, initRazorpay, verifyPayment, isPlacingOrder } = useCheckout();
+
   const { addAddress, isAdding } = useAddress();
   const { lookupPincode, isLookingUp, pincodeError } = usePincodeLookup();
 
@@ -30,7 +31,7 @@ const Checkout = () => {
   const [isAddressExpanded, setIsAddressExpanded] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [shippingAddress, setShippingAddress] = useState({
-    firstName: "", lastName: "", address: "", apartment: "",
+    firstName: "", lastName: "", flat: "", area: "", landmark: "",
     city: "", state: "", pinCode: "", phone: ""
   });
 
@@ -91,25 +92,51 @@ const Checkout = () => {
     if (e) e.preventDefault();
     const { firstName, address, city, state, pinCode, phone, apartment, lastName } = shippingAddress;
 
-    if (!firstName || !address || !city || !state || !pinCode || !phone) {
-      return toast.error("Please fill in all required fields.");
+    // 👉 UPDATED: Validate new fields
+    const isMissingFields =
+      !shippingAddress.firstName?.trim() ||
+      !shippingAddress.flat?.trim() ||
+      !shippingAddress.area?.trim() ||
+      !shippingAddress.city?.trim() ||
+      !shippingAddress.state?.trim() ||
+      !shippingAddress.pinCode?.trim() ||
+      !shippingAddress.phone?.trim();
+
+    if (isMissingFields) {
+      toast.error("Please fill in all required shipping details.");
+      return;
     }
 
+    if (shippingAddress.pinCode.trim().length !== 6) {
+      toast.error("Please enter a valid 6-digit Pincode.");
+      return;
+    }
+
+    // 👉 UPDATED: Combine fields securely, ignoring empty landmarks
+    const combinedAddress = [
+      shippingAddress.flat?.trim(),
+      shippingAddress.area?.trim(),
+      shippingAddress.landmark?.trim()
+    ].filter(Boolean).join(', ');
+
     const finalAddress = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      address: apartment ? `${apartment}, ${address}` : address,
-      city: city.trim(),
-      state: state.trim(),
-      pincode: pinCode.trim(),
-      phone: phone.trim()
+      firstName: shippingAddress.firstName.trim(),
+      lastName: shippingAddress.lastName.trim(),
+      address: combinedAddress, // Send perfectly joined string to DB
+      city: shippingAddress.city.trim(),
+      state: shippingAddress.state.trim(),
+      pincode: shippingAddress.pinCode.trim(),
+      phone: shippingAddress.phone.trim()
     };
 
     try {
       await addAddress(finalAddress);
       setShowNewAddressForm(false);
-      setShippingAddress({ firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: "" });
-    } catch (err) { /* Hook handles error toasts */ }
+      // 👉 UPDATED: Reset all specific fields
+      setShippingAddress({ firstName: "", lastName: "", flat: "", area: "", landmark: "", city: "", state: "", pinCode: "", phone: "" });
+    } catch (err) {
+      // Silently catch error to prevent app crash. The hook handles the error toast.
+    }
   };
 
   const handleCheckout = async (e) => {
@@ -213,12 +240,25 @@ const Checkout = () => {
               </div>
             ) : (
               <div className="space-y-4 animate-in fade-in">
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="text" name="firstName" placeholder="First name" value={shippingAddress.firstName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md" />
-                  <input type="text" name="lastName" placeholder="Last name" value={shippingAddress.lastName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md" />
+                {savedAddresses.length > 0 && (
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium text-gray-800">New Address</h3>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input type="text" name="firstName" placeholder="First name" value={shippingAddress.firstName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                  <input type="text" name="lastName" placeholder="Last name" value={shippingAddress.lastName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
                 </div>
-                <input type="text" name="address" placeholder="Address" value={shippingAddress.address} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md" />
-                <div className="grid grid-cols-3 gap-4">
+
+                {/* 👉 REPLACED WITH FLAT, AREA, LANDMARK */}
+                <div className="space-y-4">
+                  <input type="text" name="flat" placeholder="Flat, House no., Building, Company, Apartment" value={shippingAddress.flat} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                  <input type="text" name="area" placeholder="Area, Street, Sector, Village" value={shippingAddress.area} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                  <input type="text" name="landmark" placeholder="Landmark (Optional) E.g. Near Apollo Hospital" value={shippingAddress.landmark} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative">
                     <input type="text" name="pinCode" placeholder="PIN code" value={shippingAddress.pinCode} onChange={handleShippingChange} className={`w-full p-3.5 border rounded-md ${pincodeError ? 'border-red-300' : 'border-gray-300'}`} />
                     {isLookingUp && <div className="absolute right-3 top-1/2 -translate-y-1/2"><Loader2 className="w-5 h-5 animate-spin text-[#D19D94]" /></div>}
@@ -226,10 +266,34 @@ const Checkout = () => {
                   <input type="text" name="city" placeholder="City" value={shippingAddress.city} readOnly className="w-full p-3.5 border border-gray-100 bg-gray-50 rounded-md" />
                   <input type="text" name="state" placeholder="State" value={shippingAddress.state} readOnly className="w-full p-3.5 border border-gray-100 bg-gray-50 rounded-md" />
                 </div>
-                <input type="text" name="phone" placeholder="Phone" value={shippingAddress.phone} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md" />
-                <div className="flex gap-4 mt-6">
-                  <button type="button" onClick={handleSaveAddress} disabled={isAdding} className="px-8 py-3 bg-stone-800 text-white rounded-md disabled:bg-stone-400">{isAdding ? "Saving..." : "Save Address"}</button>
-                  {savedAddresses.length > 0 && <button type="button" onClick={() => setShowNewAddressForm(false)} className="px-8 py-3 border border-gray-300 text-gray-600 rounded-md">Cancel</button>}
+                {pincodeError && <p className="text-red-500 text-xs mt-1">{pincodeError}</p>}
+
+                <div className="relative mt-4">
+                  <input type="text" name="phone" placeholder="Phone" value={shippingAddress.phone} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                </div>
+
+                {/* Save Address Button */}
+                <div className="flex gap-4 mt-6 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={handleSaveAddress}
+                    disabled={isAdding}
+                    className="px-6 py-3 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-400 text-white font-medium rounded-md transition-colors cursor-pointer"
+                  >
+                    {isAdding ? "Saving..." : "Save Address"}
+                  </button>
+                  {savedAddresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewAddressForm(false);
+                        setIsAddressExpanded(true);
+                      }}
+                      className="px-6 py-3 border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium rounded-md transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
               </div>
             )}
