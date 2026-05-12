@@ -16,24 +16,37 @@ const Addresses = () => {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
-    // Form State
+    // Form State - Split address into flat, area, landmark
     const [formData, setFormData] = useState({
-        firstName: '', lastName: '', phone: '', address: '', city: '', state: '', pincode: '', isDefault: false
+        firstName: '', lastName: '', phone: '', flat: '', area: '', landmark: '', city: '', state: '', pincode: '', isDefault: false
     });
 
     // 👉 LOGIC: Is this their very first address, OR are they editing their only address?
     const isOnlyAddress = addresses.length === 0 || (addresses.length === 1 && editingId === addresses[0]._id);
 
-    const handleOpenForm = (address = null) => {
-        if (address) {
-            setFormData(address);
-            setEditingId(address._id);
+    const handleOpenForm = (addressObj = null) => {
+        if (addressObj) {
+            // Attempt to elegantly split existing saved addresses for the edit view
+            const parts = addressObj.address ? addressObj.address.split(',').map(s => s.trim()) : [];
+            const flat = parts[0] || '';
+            const area = parts[1] || '';
+            const landmark = parts.slice(2).join(', ') || '';
+
+            setFormData({
+                ...addressObj,
+                flat,
+                area,
+                landmark
+            });
+            setEditingId(addressObj._id);
         } else {
             setFormData({
                 firstName: user?.firstName || '',
                 lastName: user?.lastName || '',
                 phone: user?.phoneNumber || '',
-                address: '',
+                flat: '',
+                area: '',
+                landmark: '',
                 city: '',
                 state: '',
                 pincode: '',
@@ -81,9 +94,21 @@ const Addresses = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Force isDefault to true if it's their only address, just to be safe before sending to DB
+        // 👉 JOIN THE FIELDS: Combine Flat, Area, and Landmark securely
+        const joinedAddress = [
+            formData.flat?.trim(),
+            formData.area?.trim(),
+            formData.landmark?.trim()
+        ].filter(Boolean).join(', '); // filter(Boolean) safely ignores empty landmarks!
+
         const finalData = {
-            ...formData,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            city: formData.city,
+            state: formData.state,
+            pincode: formData.pincode,
+            address: joinedAddress, // Send perfectly joined string to DB
             isDefault: isOnlyAddress ? true : formData.isDefault
         };
 
@@ -137,9 +162,21 @@ const Addresses = () => {
                             <label className="block text-[13px] font-medium text-gray-600">Last Name</label>
                             <input required name="lastName" value={formData.lastName} onChange={handleChange} type="text" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
                         </div>
+
+                        {/* 👉 REPLACED SINGLE ADDRESS WITH THREE SPECIFIC FIELDS */}
                         <div className="space-y-1.5 md:col-span-2">
-                            <label className="block text-[13px] font-medium text-gray-600">Street Address</label>
-                            <input required name="address" value={formData.address} onChange={handleChange} type="text" placeholder="House number, apartment, and street name" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
+                            <label className="block text-[13px] font-medium text-gray-600">Flat / House No.</label>
+                            <input required name="flat" value={formData.flat} onChange={handleChange} type="text" placeholder="Flat, House no., Building, Company, Apartment" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
+                        </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                            <label className="block text-[13px] font-medium text-gray-600">Area / Street</label>
+                            <input required name="area" value={formData.area} onChange={handleChange} type="text" placeholder="Area, Street, Sector, Village" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
+                        </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                            <label className="block text-[13px] font-medium text-gray-600">Landmark (Optional)</label>
+                            <input name="landmark" value={formData.landmark} onChange={handleChange} type="text" placeholder="E.g. Near Apollo Hospital" className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-gray-400 text-[14px]" />
                         </div>
 
                         {/* 👉 PINCODE FIELD WITH SPINNER */}

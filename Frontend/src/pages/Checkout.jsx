@@ -20,7 +20,6 @@ const Checkout = () => {
   const { cart, isLoading: isCartLoading } = useCart();
   const { createOrder, initRazorpay, verifyPayment, isPlacingOrder } = useCheckout();
 
-  // 👉 Extract addAddress AND isAdding directly from your hook!
   const { addAddress, isAdding } = useAddress();
   const { lookupPincode, isLookingUp, pincodeError } = usePincodeLookup();
 
@@ -32,8 +31,9 @@ const Checkout = () => {
   const [isAddressExpanded, setIsAddressExpanded] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
 
+  // 👉 UPDATED: State now uses flat, area, and landmark
   const [shippingAddress, setShippingAddress] = useState({
-    firstName: "", lastName: "", address: "", apartment: "",
+    firstName: "", lastName: "", flat: "", area: "", landmark: "",
     city: "", state: "", pinCode: "", phone: ""
   });
 
@@ -88,13 +88,14 @@ const Checkout = () => {
     }
   };
 
-  // 👉 CLEANED UP: Save Address logic delegates toasts to the hook
   const handleSaveAddress = async (e) => {
     if (e) e.preventDefault();
 
+    // 👉 UPDATED: Validate new fields
     const isMissingFields =
       !shippingAddress.firstName?.trim() ||
-      !shippingAddress.address?.trim() ||
+      !shippingAddress.flat?.trim() ||
+      !shippingAddress.area?.trim() ||
       !shippingAddress.city?.trim() ||
       !shippingAddress.state?.trim() ||
       !shippingAddress.pinCode?.trim() ||
@@ -110,14 +111,17 @@ const Checkout = () => {
       return;
     }
 
-    const combinedAddress = shippingAddress.apartment?.trim()
-      ? `${shippingAddress.apartment.trim()}, ${shippingAddress.address.trim()}`
-      : shippingAddress.address.trim();
+    // 👉 UPDATED: Combine fields securely, ignoring empty landmarks
+    const combinedAddress = [
+      shippingAddress.flat?.trim(),
+      shippingAddress.area?.trim(),
+      shippingAddress.landmark?.trim()
+    ].filter(Boolean).join(', ');
 
     const finalAddress = {
       firstName: shippingAddress.firstName.trim(),
       lastName: shippingAddress.lastName.trim(),
-      address: combinedAddress,
+      address: combinedAddress, // Send perfectly joined string to DB
       city: shippingAddress.city.trim(),
       state: shippingAddress.state.trim(),
       pincode: shippingAddress.pinCode.trim(),
@@ -126,9 +130,9 @@ const Checkout = () => {
 
     try {
       await addAddress(finalAddress);
-      // Only close/clear if it actually succeeded. Toasts are handled by useAddress hook!
       setShowNewAddressForm(false);
-      setShippingAddress({ firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: "" });
+      // 👉 UPDATED: Reset all specific fields
+      setShippingAddress({ firstName: "", lastName: "", flat: "", area: "", landmark: "", city: "", state: "", pinCode: "", phone: "" });
     } catch (err) {
       // Silently catch error to prevent app crash. The hook handles the error toast.
     }
@@ -281,14 +285,18 @@ const Checkout = () => {
                     <h3 className="font-medium text-gray-800">New Address</h3>
                   </div>
                 )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input type="text" name="firstName" placeholder="First name" value={shippingAddress.firstName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
                   <input type="text" name="lastName" placeholder="Last name" value={shippingAddress.lastName} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
                 </div>
-                <div className="relative">
-                  <input type="text" name="address" placeholder="Address" value={shippingAddress.address} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+
+                {/* 👉 REPLACED WITH FLAT, AREA, LANDMARK */}
+                <div className="space-y-4">
+                  <input type="text" name="flat" placeholder="Flat, House no., Building, Company, Apartment" value={shippingAddress.flat} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                  <input type="text" name="area" placeholder="Area, Street, Sector, Village" value={shippingAddress.area} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
+                  <input type="text" name="landmark" placeholder="Landmark (Optional) E.g. Near Apollo Hospital" value={shippingAddress.landmark} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
                 </div>
-                <input type="text" name="apartment" placeholder="Apartment, suite, etc. (optional)" value={shippingAddress.apartment} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative">
@@ -315,7 +323,7 @@ const Checkout = () => {
                   <input type="text" name="phone" placeholder="Phone" value={shippingAddress.phone} onChange={handleShippingChange} className="w-full p-3.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-gray-400" />
                 </div>
 
-                {/* 👉 Save Address Button using isAdding from hook */}
+                {/* Save Address Button */}
                 <div className="flex gap-4 mt-6 pt-4 border-t border-gray-100">
                   <button
                     type="button"
