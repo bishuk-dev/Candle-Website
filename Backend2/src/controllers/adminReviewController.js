@@ -1,58 +1,70 @@
-import { Product } from "../models/productModels.js";
+import  Review  from "../models/reviewModel.js";
 
 export const getAllReviewsAdmin = async (req, res) => {
     try {
-        const { page = 1, limit = 10, rating, status } = req.query;
+        let { page = 1, limit = 10, rating, status } = req.query;
 
-        const matchStage = {};
+        page = Number(page);
+        limit = Number(limit);
 
-        //  Filter by rating
+        const filter = {};
+
+        // Filter by rating
         if (rating) {
-            matchStage["reviews.rating"] = Number(rating);
+            filter.rating = Number(rating);
         }
 
-        //  Filter by status
+        // Filter by status
         if (status) {
-            matchStage["reviews.status"] = status;
+            filter.status = status;
         }
 
-        const result = await Product.aggregate([
-            { $unwind: "$reviews" },
+        // Aggregation pipeline
+        const result = await Review.aggregate([
+            { $match: filter },
 
-            { $match: matchStage },
+            {
+                $lookup: {
+                    from: "products", // collection name in MongoDB
+                    localField: "product",
+                    foreignField: "_id",
+                    as: "productData"
+                }
+            },
+            { $unwind: "$productData" },
 
             {
                 $facet: {
-                    //  REVIEWS DATA (PAGINATION)
+                    // ✅ Reviews Data (Pagination)
                     reviews: [
                         {
                             $project: {
-                                userId: "$reviews.user._id",
-                                productId: "$_id",
-                                productName: "$name",
-                                userName: "$reviews.name",
-                                rating: "$reviews.rating",
-                                comment: "$reviews.comment",
-                                status: "$reviews.status",
-                                createdAt: "$reviews.createdAt"
+                                userId: "$user",
+                                productId: "$product",
+                                productName: "$productData.name",
+                                userName: "$name",
+                                rating: 1,
+                                comment: 1,
+                                status: 1,
+                                createdAt: 1
                             }
                         },
                         { $sort: { createdAt: -1 } },
                         { $skip: (page - 1) * limit },
-                        { $limit: Number(limit) }
+                        { $limit: limit }
                     ],
 
-                    //  TOTAL COUNT
+                    // ✅ Total Count
                     totalCount: [
                         { $count: "count" }
                     ],
 
-                    //  AVERAGE RATING
+                    // ✅ Average Rating
                     avgRating: [
                         {
                             $group: {
                                 _id: null,
-                                average: { $avg: "$reviews.rating" }
+                                average: { $avg: "$rating" }
                             }
                         }
                     ]
@@ -60,13 +72,13 @@ export const getAllReviewsAdmin = async (req, res) => {
             }
         ]);
 
-        const reviews = result[0].reviews;
-        const totalReviews = result[0].totalCount[0]?.count || 0;
-        const averageRating = result[0].avgRating[0]?.average || 0;
+        const reviews = result[0]?.reviews || [];
+        const totalReviews = result[0]?.totalCount[0]?.count || 0;
+        const averageRating = result[0]?.avgRating[0]?.average || 0;
 
         res.status(200).json({
             success: true,
-            currentPage: Number(page),
+            currentPage: page,
             totalReviews,
             averageRating: Number(averageRating.toFixed(1)),
             reviews

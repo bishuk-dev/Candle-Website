@@ -11,7 +11,7 @@ export const getHomeData = async (req, res) => {
             bestSeller,
             discounted,
             rawProducts,
-            homeReviews
+            
         ] = await Promise.all([
 
             // Fetch active banners

@@ -2,14 +2,15 @@ import {Product} from "../models/productModels.js";
 import { CandleCustomization } from "../models/optionModel.js";
 import {Banner} from "../models/bannerModel.js";
 import { Category } from "../models/categoryModel.js";
+import  Review  from "../models/reviewModel.js";
 
 
 export const updateReviewStatus = async (req, res) => {
     try {
-        const { productId, userId } = req.params;
-        const { status } = req.body; // "pending" or "published"
+        const { reviewId } = req.params;
+        const { status } = req.body;
 
-        //  validate status
+        // 1. Validate status
         if (!["pending", "published"].includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -17,16 +18,8 @@ export const updateReviewStatus = async (req, res) => {
             });
         }
 
-        const prod = await Product.findById(productId);
-
-        if (!prod) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found"
-            });
-        }
-
-        const review = prod.reviews.findById(userId);
+        // 2. Find review
+        const review = await Review.findById(reviewId);
 
         if (!review) {
             return res.status(404).json({
@@ -35,13 +28,38 @@ export const updateReviewStatus = async (req, res) => {
             });
         }
 
-        //  update status
+        // 3. Update status
         review.status = status;
-        prod.numOfPublishedReviews = status === "published" ? prod.numofPublishedReviews + 1 : prod.numofPublishedReviews;
-        prod.totalStar = status === "published" ? prod.totalStar + review.rating : prod.totalStar;
-        prod.ratings = Math.round(totalStar / prod.numOfPublishedReviews * 10) / 10;;
+        await review.save();
 
-        await prod.save();
+        // 4. Recalculate product rating (IMPORTANT)
+        const productId = review.product;
+
+        const publishedReviews = await Review.find({
+            product: productId,
+            status: "published"
+        });
+
+        const numOfPublishedReviews = publishedReviews.length;
+
+        const totalStars = publishedReviews.reduce(
+            (acc, item) => acc + item.rating,
+            0
+        );
+
+        const avgRating =
+            numOfPublishedReviews > 0
+                ? totalStars / numOfPublishedReviews
+                : 0;
+
+        // 5. Update product
+        const product = await Product.findById(productId);
+
+        if (product) {
+            product.numOfReviews = numOfPublishedReviews;
+            product.ratings = Number(avgRating.toFixed(1));
+            await product.save();
+        }
 
         res.status(200).json({
             success: true,

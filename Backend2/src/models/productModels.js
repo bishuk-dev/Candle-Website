@@ -108,32 +108,36 @@ const productSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    averageRating: {
+        type: Number,
+        default: 0
+    },
+    
 
-
-    reviews: [
-        {
-            user: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: "User"
-            },
-            // showOnHome: {
-            //     type: Boolean,
-            //     default: false
-            // },
-            status: {
-                type: String,
-                enum: ["pending", "published"],
-                default: "pending"
-            },
-            name: String,
-            rating: Number,
-            comment: String,
-            createdAt: {
-                type: Date,
-                default: Date.now
-            }
-        }
-    ],
+    // reviews: [
+    //     {
+    //         user: {
+    //             type: mongoose.Schema.Types.ObjectId,
+    //             ref: "User"
+    //         },
+    //         // showOnHome: {
+    //         //     type: Boolean,
+    //         //     default: false
+    //         // },
+    //         status: {
+    //             type: String,
+    //             enum: ["pending", "published"],
+    //             default: "pending"
+    //         },
+    //         name: String,
+    //         rating: Number,
+    //         comment: String,
+    //         createdAt: {
+    //             type: Date,
+    //             default: Date.now
+    //         }
+    //     }
+    // ],
 
     // tags: [String], // "gift", "premium"
     weight: Number,

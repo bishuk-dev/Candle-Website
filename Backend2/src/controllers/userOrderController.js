@@ -2,6 +2,7 @@ import axios from "axios";
 import { Order } from "../models/orderModel.js";
 import { getShiprocketToken } from "../services/shipRocketService.js";
 import {Product} from "../models/productModels.js";
+import Review from "../models/reviewModel.js";
 
 
 export const getMyOrders = async (req, res) => {
@@ -145,11 +146,13 @@ export const getSingleOrder = async (req, res) => {
 
 
 
+
+
 export const addReviewAfterDelivery = async (req, res) => {
     try {
         const { orderId, productId, rating, comment } = req.body;
 
-        //  1. Find order
+        // 1. Find order
         const order = await Order.findById(orderId);
 
         if (!order) {
@@ -159,7 +162,7 @@ export const addReviewAfterDelivery = async (req, res) => {
             });
         }
 
-        //  2. Check order belongs to user
+        // 2. Check order belongs to user
         if (order.user.toString() !== req.user._id.toString()) {
             return res.status(403).json({
                 success: false,
@@ -167,7 +170,7 @@ export const addReviewAfterDelivery = async (req, res) => {
             });
         }
 
-        //  3. Check delivered
+        // 3. Check delivered
         if (order.orderStatus !== "delivered") {
             return res.status(400).json({
                 success: false,
@@ -187,13 +190,21 @@ export const addReviewAfterDelivery = async (req, res) => {
             });
         }
 
-        //  5. Find product
+        // 5. Check product exists
         const product = await Product.findById(productId);
 
-        //  6. Prevent duplicate review
-        const alreadyReviewed = product.reviews.find(
-            r => r.user.toString() === req.user._id.toString()
-        );
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+
+        // 6. Prevent duplicate review (NEW WAY)
+        const alreadyReviewed = await Review.findOne({
+            product: productId,
+            user: req.user._id
+        });
 
         if (alreadyReviewed) {
             return res.status(400).json({
@@ -202,28 +213,37 @@ export const addReviewAfterDelivery = async (req, res) => {
             });
         }
 
-        //  7. Add review
-        const review = {
+        // 7. Create review (NEW)
+        const review = await Review.create({
+            product: productId,
             user: req.user._id,
             name: req.user.firstName,
             rating,
-            comment
-        };
+            comment,
+            status: "pending" // optional moderation
+        });
 
-        product.reviews.push(review);
+        // 8. Update product rating (IMPORTANT)
+        const reviews = await Review.find({
+            product: productId,
+            status: "published" // only count approved reviews
+        });
 
-        //  8. Update ratings
-        product.numOfReviews = product.reviews.length;
+        const numOfReviews = reviews.length;
 
-        product.ratings =
-            product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-            product.reviews.length;
+        const avgRating =
+            reviews.reduce((acc, item) => acc + item.rating, 0) /
+            (numOfReviews || 1);
+
+        product.numOfReviews = numOfReviews;
+        product.averageRating = avgRating;
 
         await product.save();
 
-        res.status(200).json({
+        res.status(201).json({
             success: true,
-            message: "Review added successfully"
+            message: "Review submitted successfully",
+            review
         });
 
     } catch (error) {
@@ -233,7 +253,6 @@ export const addReviewAfterDelivery = async (req, res) => {
         });
     }
 };
-
 
 
 

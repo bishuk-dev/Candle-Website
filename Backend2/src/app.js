@@ -38,12 +38,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // Security
 app.use("/api", rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minutes
-    max: 20, // Limit each IP to 20 requests per `window
+    max: 100, // Limit each IP to 20 requests per `window
     message: 'Too many requests from this IP, please try again'
 }));
 app.use("/api/auth", rateLimit({
