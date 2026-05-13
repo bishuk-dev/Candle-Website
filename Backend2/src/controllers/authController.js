@@ -7,6 +7,7 @@ import { verifyGoogleToken, findOrCreateGoogleUser } from "../services/googleAut
 
 import { sendOtp, verifyOtpService } from "../services/otp_services.js";
 import jwt from "jsonwebtoken";
+import { sendWelcomeEmail } from '../utils/sendEmail.js';
 
 
 
@@ -297,9 +298,13 @@ export const completeProfile = async (req, res) => {
             isPhoneVerified: true
         });
 
+        sendWelcomeEmail(newUser.email, newUser.firstName);
+
         //  Final login token
         const authToken = generateToken(newUser);
         setTokenCookie(res, authToken);
+
+
 
         res.status(201).json({
             success: true,
@@ -329,10 +334,13 @@ export const googleAuth = async (req, res) => {
         const payload = await verifyGoogleToken(token);
 
 
-        const user = await findOrCreateGoogleUser(payload);
+        // 👉 1. Destructure both the user AND the isNewUser flag from your helper
+        const { user, isNewUser } = await findOrCreateGoogleUser(payload);
 
-
-
+        // 👉 2. TRIGGER EMAIL ONLY FOR NEW USERS
+        if (isNewUser) {
+            sendWelcomeEmail(user.email, user.firstName);
+        }
 
 
         const jwt_token = generateToken(user);

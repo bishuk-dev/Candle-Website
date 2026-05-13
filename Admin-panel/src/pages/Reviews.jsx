@@ -20,7 +20,7 @@ const Reviews = () => {
   // Extract from backend response
   const reviews = data?.reviews || [];
   const totalReviews = data?.totalReviews || 0;
-  const averageRating = data?.averageRating || 0;
+  // Removed averageRating
 
   // 👉 Stat Card counts (Checking against lowercase DB values)
   const publishedCount = reviews.filter(r => r.status === 'published').length;
@@ -61,7 +61,7 @@ const Reviews = () => {
     if (!searchQuery) return reviews;
     const query = searchQuery.toLowerCase();
     return (
-      review.user?.toLowerCase().includes(query) ||
+      review.userName?.toLowerCase().includes(query) || // changed from review.user to review.userName based on your aggregation
       review.productName?.toLowerCase().includes(query) ||
       review.comment?.toLowerCase().includes(query)
     );
@@ -110,17 +110,8 @@ const Reviews = () => {
         </div>
       </div>
 
-      {/* Reviews Summary Bento */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-stack-lg">
-        <div ref={addToStatsRef} className="bg-surface-container-lowest p-6 rounded-lg border border-surface-variant shadow-[0_4px_20px_-10px_rgba(141,75,0,0.05)]">
-          <div className="text-on-surface-variant font-label-sm text-label-sm uppercase mb-2">Average Rating</div>
-          <div className="flex items-end gap-2">
-            <div className="font-heading text-headline-xl text-on-surface">{averageRating.toFixed(1)}</div>
-            <div className="flex text-primary pb-1">
-              {renderStars(averageRating)}
-            </div>
-          </div>
-        </div>
+      {/* Reviews Summary Bento - Changed to lg:grid-cols-3 to balance the 3 remaining cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-stack-lg">
         <div ref={addToStatsRef} className="bg-surface-container-lowest p-6 rounded-lg border border-surface-variant shadow-[0_4px_20px_-10px_rgba(141,75,0,0.05)]">
           <div className="text-on-surface-variant font-label-sm text-label-sm uppercase mb-2">Total Reviews</div>
           <div className="font-heading text-headline-xl text-on-surface">{totalReviews}</div>
@@ -161,7 +152,7 @@ const Reviews = () => {
 
         <div className="divide-y divide-surface-variant">
           {filteredReviews.map((review) => {
-            const initial = review.user ? review.user.charAt(0).toUpperCase() : 'U';
+            const initial = review.userName ? review.userName.charAt(0).toUpperCase() : 'U';
             const formattedDate = new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
             // Format status for UI display
@@ -170,7 +161,7 @@ const Reviews = () => {
 
             return (
               <div
-                key={review._id}
+                key={review._id} // Assuming the backend returns _id for the review (if not, use review.userId + review.productId)
                 ref={addToReviewsRef}
                 className={`p-stack-md flex flex-col sm:flex-row gap-6 hover:bg-surface-bright transition-colors ${!isPublished ? 'bg-surface-container-low/30' : ''}`}
               >
@@ -182,7 +173,7 @@ const Reviews = () => {
                 <div className="flex-1">
                   <div className="flex flex-col lg:flex-row justify-between items-start mb-2 gap-4">
                     <div>
-                      <h3 className="font-label-md text-label-md text-on-surface">{review.user || 'Anonymous'}</h3>
+                      <h3 className="font-label-md text-label-md text-on-surface">{review.userName || 'Anonymous'}</h3>
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex text-primary text-sm">
                           {renderStars(review.rating)}

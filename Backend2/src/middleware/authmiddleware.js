@@ -23,7 +23,6 @@ export const isAuthenticated = async (req, res, next) => {
 
         // 2. Verify the raw token (no "Bearer " string here)
         const decoded = jwt.verify(token, config.jwt.secret);
-        console.log("Decoded JWT:", decoded);
         
         const user = await User.findById(decoded.id);
         if (!user) {

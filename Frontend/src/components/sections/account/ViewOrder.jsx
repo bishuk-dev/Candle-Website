@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom'; // 👉 1. IMPORT PORTAL
-import { useParams, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom'; // 👉 1. IMPORT REACT PORTAL
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
     Package, Truck, CheckCircle, ChevronLeft, MapPin, CreditCard, Clock, ExternalLink, Loader2, Star, X
 } from 'lucide-react';
@@ -38,7 +38,8 @@ const formatOrderData = (data) => {
         displayStatus,
         statusSteps,
         formattedCreatedAt: formatDate(order.createdAt),
-        formattedPaidAt: order.paidAt ? formatDate(order.paidAt) : null
+        formattedPaidAt: order.paidAt ? formatDate(order.paidAt) : null,
+        currentUserId: order.user?._id || order.user // Get User ID to check reviews
     };
 };
 
@@ -46,7 +47,7 @@ const ViewOrder = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
 
-    // REVIEW MODAL & HOVER STATES
+    // REVIEW MODAL STATES
     const [reviewModal, setReviewModal] = useState({
         isOpen: false,
         productId: null,
@@ -54,6 +55,7 @@ const ViewOrder = () => {
         rating: 0,
         comment: ''
     });
+    // 👉 2. TRACK HOVER POSITION
     const [hoverRating, setHoverRating] = useState(0);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
@@ -77,12 +79,8 @@ const ViewOrder = () => {
     };
 
     const handleSubmitReview = async () => {
-        if (reviewModal.rating === 0) {
-            return toast.error("Please select a star rating.");
-        }
-        if (!reviewModal.comment.trim()) {
-            return toast.error("Please add a comment for your review.");
-        }
+        if (reviewModal.rating === 0) return toast.error("Please select a star rating.");
+        if (!reviewModal.comment.trim()) return toast.error("Please add a comment for your review.");
 
         setIsSubmittingReview(true);
         try {
@@ -94,6 +92,10 @@ const ViewOrder = () => {
             });
 
             toast.success("Review added successfully!");
+
+            // Optional: You might want to invalidate your react-query cache here to instantly show the new review
+            // queryClient.invalidateQueries(['order', orderId]);
+
             handleCloseReview();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to submit review.");
@@ -121,7 +123,7 @@ const ViewOrder = () => {
         );
     }
 
-    const { order, displayStatus, statusSteps, formattedCreatedAt, formattedPaidAt } = formattedData;
+    const { order, displayStatus, statusSteps, formattedCreatedAt, formattedPaidAt, currentUserId } = formattedData;
 
     return (
         <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-12 relative">
@@ -137,7 +139,6 @@ const ViewOrder = () => {
             </header>
 
             <main className="max-w-5xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Order Status & Items */}
                 <div className="lg:col-span-2 space-y-6">
                     <section className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
                         <div className="p-6">
@@ -203,66 +204,103 @@ const ViewOrder = () => {
                             </h3>
                         </div>
                         <div className="divide-y divide-stone-100">
-                            {order.orderItems.map((item, idx) => (
-                                <div key={idx} className="p-6 flex flex-col group">
-                                    <div className="flex items-center">
-                                        <div className="h-20 w-20 flex-shrink-0 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
-                                            <img
-                                                src={item.product?.images?.[0]?.url || "/placeholder.jpg"}
-                                                alt={item.product?.name || "Product"}
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                            />
-                                        </div>
-                                        <div className="ml-6 flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-medium text-stone-900">{item.product?.name || "Custom Candle"}</h4>
-                                                    {item.type === "custom" && item.snapshot && (
-                                                        <p className="text-xs text-stone-500 mt-1 line-clamp-1">
-                                                            Add-ons: {item.snapshot.addOnNames?.join(', ') || "None"}
-                                                        </p>
-                                                    )}
-                                                    <div className="flex items-center space-x-3 mt-2">
-                                                        <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">
-                                                            {item.type?.replace(/([A-Z])/g, ' $1').trim() || "Item"}
-                                                        </span>
-                                                        <span className="text-sm text-stone-500">Qty: {item.quantity || 1}</span>
-                                                    </div>
+                            {order.orderItems.map((item, idx) => {
+                                const existingReview = item.product?.reviews?.find(r => r.user === currentUserId);
+
+                                // 👉 Construct the URL for standard products
+                                const productUrl = item.type !== "custom" && item.product?._id
+                                    ? `/collections/candles/product/${item.product._id}`
+                                    : null;
+
+                                return (
+                                    <div key={idx} className="p-6 flex flex-col group">
+                                        <div className="flex items-center">
+
+                                            {/* 👉 Wrap Image in Link */}
+                                            {productUrl ? (
+                                                <Link to={productUrl} className="h-20 w-20 flex-shrink-0 bg-stone-50 rounded-lg overflow-hidden border border-stone-100 block">
+                                                    <img
+                                                        src={item.product?.images?.[0]?.url || "/placeholder.jpg"}
+                                                        alt={item.product?.name || "Product"}
+                                                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                                                    />
+                                                </Link>
+                                            ) : (
+                                                <div className="h-20 w-20 flex-shrink-0 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
+                                                    <img
+                                                        src={item.product?.images?.[0]?.url || "/placeholder.jpg"}
+                                                        alt={item.product?.name || "Product"}
+                                                        className="w-full h-full object-cover"
+                                                    />
                                                 </div>
-                                                <p className="font-medium text-stone-900">
-                                                    ₹{(item.price || (order.itemsPrice / order.orderItems.length)).toFixed(2)}
-                                                </p>
+                                            )}
+
+                                            <div className="ml-6 flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        {/* 👉 Wrap Title in Link */}
+                                                        {productUrl ? (
+                                                            <Link to={productUrl} className="font-medium text-stone-900 hover:text-[#D19D94] transition-colors">
+                                                                {item.product?.name || "Custom Candle"}
+                                                            </Link>
+                                                        ) : (
+                                                            <h4 className="font-medium text-stone-900">{item.product?.name || "Custom Candle"}</h4>
+                                                        )}
+
+                                                        {item.type === "custom" && item.snapshot && (
+                                                            <p className="text-xs text-stone-500 mt-1 line-clamp-1">
+                                                                Add-ons: {item.snapshot.addOnNames?.join(', ') || "None"}
+                                                            </p>
+                                                        )}
+                                                        <div className="flex items-center space-x-3 mt-2">
+                                                            <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">
+                                                                {item.type?.replace(/([A-Z])/g, ' $1').trim() || "Item"}
+                                                            </span>
+                                                            <span className="text-sm text-stone-500">Qty: {item.quantity || 1}</span>
+                                                        </div>
+                                                    </div>
+                                                    <p className="font-medium text-stone-900">
+                                                        ₹{(item.price || (order.itemsPrice / order.orderItems.length)).toFixed(2)}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {/* REVIEW STARS SECTION */}
+                                        {order.orderStatus === 'delivered' && item.product?._id && (
+                                            <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
+                                                <span className="text-[13px] font-semibold text-stone-500 tracking-wide">
+                                                    {existingReview ? "Your Rating:" : "Leave a Review:"}
+                                                </span>
+
+                                                <div className="flex gap-1">
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <button
+                                                            key={star}
+                                                            type="button"
+                                                            // Disable clicking if already reviewed
+                                                            disabled={!!existingReview}
+                                                            onClick={() => handleOpenReview(item.product._id, item.product.name, star)}
+                                                            className={`${existingReview ? 'cursor-default' : 'text-stone-300 hover:text-amber-400 cursor-pointer transition-colors'}`}
+                                                            title={existingReview ? `You rated ${existingReview.rating} stars` : `Rate ${star} stars`}
+                                                        >
+                                                            {/* Show golden stars if already reviewed, else gray empty stars */}
+                                                            <Star
+                                                                size={24}
+                                                                className={existingReview && star <= existingReview.rating ? 'fill-amber-400 text-amber-400' : 'fill-current'}
+                                                            />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-
-                                    {order.orderStatus === 'delivered' && item.product?._id && (
-                                        <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
-                                            <span className="text-[13px] font-semibold text-stone-500 tracking-wide">Leave a Review:</span>
-
-                                            {/* Initial stars below the product to OPEN the modal */}
-                                            <div className="flex gap-1">
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                    <button
-                                                        key={star}
-                                                        type="button"
-                                                        onClick={() => handleOpenReview(item.product._id, item.product.name, star)}
-                                                        className="text-stone-300 hover:text-amber-400 transition-colors cursor-pointer"
-                                                        title={`Rate ${star} stars`}
-                                                    >
-                                                        <Star size={24} className="fill-current" />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </section>
                 </div>
 
-                {/* Right Column: Order Details & Summary */}
                 <div className="space-y-6">
                     <section className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 space-y-6">
                         <div>
@@ -271,9 +309,9 @@ const ViewOrder = () => {
                                 Shipping Address
                             </h4>
                             <div className="text-sm text-stone-600 leading-relaxed">
-                                <p className="font-semibold text-stone-900">{order.address || "Address details"}</p>
-                                <p>{order.city || "City"}, {order.state || "State"} {order.pincode || "Zip"}</p>
-                                <p>Phone: {order.phone || "N/A"}</p>
+                                <p className="font-semibold text-stone-900">{order.shippingAddress?.address || "Address details"}</p>
+                                <p>{order.shippingAddress?.city || "City"}, {order.shippingAddress?.state || "State"} {order.shippingAddress?.pincode || "Zip"}</p>
+                                <p>Phone: {order.shippingAddress?.phone || "N/A"}</p>
                             </div>
                         </div>
 
@@ -341,9 +379,9 @@ const ViewOrder = () => {
                 </div>
             </main>
 
-            {/* 👉 2. RENDER POPUP USING REACT PORTAL to escape parent constraints */}
+            {/* 👉 4. FIXED POPUP: createPortal appends this directly to document.body, escaping the parent div! */}
             {reviewModal.isOpen && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[100000] w-screen h-screen flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
 
                         <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-3">
@@ -359,15 +397,15 @@ const ViewOrder = () => {
                         <div className="mb-6">
                             <label className="block text-sm font-semibold text-stone-700 mb-2 text-center">Tap a star to rate</label>
 
-                            {/* 👉 3. FLAWLESS HOVER LOGIC */}
+                            {/* 👉 5. FLAWLESS HOVER LOGIC */}
                             <div
                                 className="flex justify-center gap-2"
-                                onMouseLeave={() => setHoverRating(0)} // Reset on mouse leave container
+                                onMouseLeave={() => setHoverRating(0)} // Reset when mouse leaves the star container
                             >
                                 {[1, 2, 3, 4, 5].map((star) => {
-                                    // Golden if the current star is <= hoverRating (if hovering)
-                                    // OR if not hovering, if it's <= the actually clicked rating.
-                                    const isFilled = (hoverRating || reviewModal.rating) >= star;
+                                    // Logic: If currently hovering, fill up to hover position. 
+                                    // If NOT hovering, fill up to the clicked rating position.
+                                    const isFilled = hoverRating > 0 ? star <= hoverRating : star <= reviewModal.rating;
 
                                     return (
                                         <button
@@ -419,7 +457,7 @@ const ViewOrder = () => {
 
                     </div>
                 </div>,
-                document.body // Appends the modal directly to the <body>
+                document.body // Appends the modal outside the main layout container!
             )}
         </div>
     );

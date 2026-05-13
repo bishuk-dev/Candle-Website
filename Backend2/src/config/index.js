@@ -15,12 +15,12 @@ export const config = {
         secret: process.env.SECRET_KEY
     },
 
-    // twilio: {
-    //     sid: process.env.TWILIO_SID,
-    //     secret: process.env.TWILIO_AUTH_TOKEN,
-    //     ssid: process.env.TWILIO_SERVICE_SID,
-    //     phone: process.env.TWILIO_PHONE
-    // },
+    twilio: {
+        sid: process.env.TWILIO_SID,
+        secret: process.env.TWILIO_AUTH_TOKEN,
+        ssid: process.env.TWILIO_SERVICE_SID,
+        phone: process.env.TWILIO_PHONE
+    },
 
     msg91: {
         authKey: process.env.MSG91_AUTH_KEY,

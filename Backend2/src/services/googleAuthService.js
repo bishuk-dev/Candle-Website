@@ -15,14 +15,15 @@ export const verifyGoogleToken = async (token) => {
 export const findOrCreateGoogleUser = async (payload) => {
     const { email, name, sub } = payload;
 
-    
     const nameParts = name ? name.split(" ") : [];
     const firstName = nameParts[0] || "User";
     const lastName = nameParts.slice(1).join(" ") || "";
 
     let user = await User.findOne({ googleId: sub });
+    let isNewUser = false; // 👉 3. Initialize the tracking flag
 
     if (!user) {
+        // This is a brand new registration
         user = await User.create({
             firstName,
             lastName,
@@ -32,10 +33,13 @@ export const findOrCreateGoogleUser = async (payload) => {
             isLoggedIn: true,
             needsPhone: true
         });
+        isNewUser = true; // 👉 4. Mark flag as true
     } else {
+        // This is an existing user logging in again
         user.isLoggedIn = true;
         await user.save();
     }
 
-    return user;
+    // 👉 5. Return both variables as an object
+    return { user, isNewUser };
 };

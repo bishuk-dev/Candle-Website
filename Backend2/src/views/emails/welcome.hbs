@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f9f9; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .header { background-color: #1a1a1a; padding: 30px 20px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 2px; text-transform: uppercase; }
+        .content { padding: 40px 30px; color: #4a4a4a; line-height: 1.6; }
+        .content h2 { color: #1a1a1a; font-size: 22px; margin-top: 0; }
+        .btn { display: inline-block; padding: 14px 28px; background-color: #D19D94; color: #ffffff !important; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 20px; }
+        .footer { background-color: #f1f1f1; padding: 20px; text-align: center; font-size: 12px; color: #888888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Naisha Creations</h1>
+        </div>
+        <div class="content">
+            <!-- Handlebars uses double curly braces for dynamic data -->
+            <h2>Welcome to the family, {{firstName}}! ✨</h2>
+            <p>We are absolutely thrilled to have you here. At Naisha Creations, we craft premium, hand-poured candles designed to bring warmth, peace, and beautiful scents into your space.</p>
+            <p>Your account has been successfully created. You can now track your orders, save your favorite addresses, and even customize your own bespoke candles.</p>
+            
+            <div style="text-align: center;">
+                <a href="{{frontendUrl}}/collections" class="btn">Shop Our Collection</a>
+            </div>
+            
+            <p style="margin-top: 30px;">Warmly,<br>The Naisha Creations Team</p>
+        </div>
+        <div class="footer">
+            &copy; {{year}} Naisha Creations. All rights reserved.<br>
+            If you have any questions, simply reply to this email.
+        </div>
+    </div>
+</body>
+</html>

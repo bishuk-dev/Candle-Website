@@ -31,7 +31,7 @@ export const getMyOrders = async (req, res) => {
 export const getSingleOrder = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id)
-            .populate("orderItems.product", "name images")
+            .populate("orderItems.product", "name images reviews")
             .populate("user", "name email"); // Populate basic user info just in case
 
         if (!order) {
